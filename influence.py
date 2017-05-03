@@ -49,7 +49,7 @@ def conjugate_gradient(Ax_f, b, iters, vervose=False):
     r = lsubtract(b, xx)
     d = r
     if vervose:
-        print("error: %.5f"%lnorm(lsubtract(Ax_f(x), b)))
+        print("Error:", lnorm(lsubtract(Ax_f(x), b)))
     for i in range(iters):    
         Ad = Ax_f(d)
         Ad_scaling = lnorm(Ad)/lnorm(d)
@@ -143,12 +143,14 @@ class Influence:
     def of(self, z):
         feed_dict = {self.input_ph: z[0], self.target_ph:z[1]}
         grads_on = self.sess.run(self.grads, feed_dict)
-        return -ldot(grads_on, self.s) * (1/len(self.trainset[0]))
+        return -ldot(grads_on, self.s)
+        #return -ldot(grads_on, self.s) * (1/len(self.trainset[0]))
 
     def of_and_g(self, z):
         feed_dict = {self.input_ph: z[0], self.target_ph:z[1]}
         grads_on = self.sess.run(self.grads, feed_dict)
-        return -ldot(grads_on, self.s) * (1/len(self.trainset[0])), lnorm(grads_on)
+        return -ldot(grads_on, self.s), lnorm(grads_on)
+        #return -ldot(grads_on, self.s) * (1/len(self.trainset[0])), lnorm(grads_on)
 
 
     def recompute_s(self, cg_iters=None, dampening=None, vervose=1):
