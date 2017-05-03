@@ -45,12 +45,14 @@ def lsize(a):
 def conjugate_gradient(Ax_f, b, iters, vervose=False):
     global d, x, r, alpha, beta, r_new, Ad, dad
     x = lset( lcopy(b), 0.)
-    r = lsubtract(b, Ax_f(x))
+    xx = Ax_f(x)
+    r = lsubtract(b, xx)
     d = r
     if vervose:
         print("error: %.5f"%lnorm(lsubtract(Ax_f(x), b)))
     for i in range(iters):    
         Ad = Ax_f(d)
+        Ad_scaling = lnorm(Ad)/lnorm(d)
         dad = ldot(d,Ad)
         assert dad >= 0., "Upsi dupsi! d.TAd=%.5f so Ad is not possitive definite but CG needs it to be :("%dad
         alpha = ldot(r,r)/dad
@@ -66,16 +68,17 @@ def conjugate_gradient(Ax_f, b, iters, vervose=False):
             print("dad:", dad)
             print("alpha:", alpha)
             print("beta:", beta)
+            print("Ad scaling:", Ad_scaling)
     return x
 
 
 class Influence:
-    def __init__(self, loss, input_ph, target_ph, testset, trainset, grads=None, dampening=0.1e-7, cg_iters=10, normal_equation=False, vervose=False):
+    def __init__(self, loss, input_ph, target_ph, testset, trainset, grads=None, dampening=0.1e-7, cg_iters=10, normal_equation=False, vervose=False, minibatch_size=1000):
         # influence on  computed from dataset
         #   grads:     gradients of "on" if they have already been computed. If grads=None they will be recomputed.
         
         if grads==None:
-            grads = tf.gradients(loss, tf.global_variables(), name="grads_for_influence")
+            grads = [g for g in tf.gradients(loss, tf.global_variables(), name="grads_for_influence") if g is not None]
         self.grads = grads
         self.loss = loss
         self.dampening = dampening 
@@ -84,38 +87,48 @@ class Influence:
         self.testset = testset
         self.vervose = vervose
         self.trainset = trainset
+        self.minibatch_size = minibatch_size
         self.sess = tf.get_default_session()
         
         # extend the graph to compute Hv products
         with tf.name_scope("Hvp"):
             with tf.name_scope("v"):
-                vecs = []
+                self.vecs = []
                 for i in range(len(grads)):
-                    vecs.append(tf.placeholder(tf.float32, grads[i].get_shape(), name="v"+str(i)+"_ph"))
+                    self.vecs.append(tf.placeholder(tf.float32, grads[i].get_shape(), name="v"+str(i)+"_ph"))
             # gradient vector product
             with tf.name_scope("gvp"):
                 gvp = []
                 for i in range(len(grads)):
-                    gvp.append(tf.reduce_sum( grads[i] * vecs[i], name="gvp"+str(i)))
+                    gvp.append(tf.reduce_sum( grads[i] * self.vecs[i], name="gvp"+str(i)))
             Hvp = [hvp for hvp in tf.gradients(gvp, tf.global_variables(), name="second_order_grads") if hvp is not None]
 
+        self.Hvp = Hvp
         # precompute H_inv_grad_on        
         # using a single batch (should break down into minibatches the task for big datasets)  
         self.grad_loss_testset = self.sess.run(grads, feed_dict={input_ph:testset[0], target_ph:testset[1]})
-        hv_feed_dic = {input_ph:trainset[0], target_ph:trainset[1]}
-
-        # no dampenning
-        def u_Hv_f(v):
-            for i in range(len(vecs)):
-                hv_feed_dic[vecs[i]] = v[i]
-            return self.sess.run(Hvp, hv_feed_dic)
-        self.u_Hv_f = u_Hv_f
+        #hv_feed_dic = {input_ph:trainset[0], target_ph:trainset[1]}
 
         def Hv_f(v):
-            for i in range(len(vecs)):
-                hv_feed_dic[vecs[i]] = v[i]
-            return ladd(self.sess.run(Hvp, hv_feed_dic), lprod(self.dampening, v))
-            #return ladd( ldiv(self.sess.run(Hvp, hv_feed_dic), 1000.), lprod(self.dampening, v))
+            hv_feed_dic = {}
+            for i in range(len(self.vecs)):
+                hv_feed_dic[self.vecs[i]] = v[i]
+
+            a = 0 
+            b = self.minibatch_size
+            hv_feed_dic[input_ph] = trainset[0][a:b]
+            hv_feed_dic[target_ph] = trainset[1][a:b]
+            res = ladd(self.sess.run(Hvp, hv_feed_dic), lprod(self.dampening, v))
+            while b < len(self.trainset[0]):
+                a = b 
+                b = min(a + self.minibatch_size, len(self.trainset[0]))
+                hv_feed_dic[input_ph] = trainset[0][a:b]
+                hv_feed_dic[target_ph] = trainset[1][a:b]
+                minibatch_res = self.sess.run(Hvp, hv_feed_dic)
+                #minibatch_res = ladd(self.sess.run(Hvp, hv_feed_dic), lprod(self.dampening, v))
+                res = ladd(res, minibatch_res)
+            #return res
+            return ladd(res, lprod(self.dampening, v))
         self.Hv_f = Hv_f
 
         if normal_equation == False:
@@ -132,6 +145,25 @@ class Influence:
         grads_on = self.sess.run(self.grads, feed_dict)
         return -ldot(grads_on, self.s) * (1/len(self.trainset[0]))
 
+    def of_and_g(self, z):
+        feed_dict = {self.input_ph: z[0], self.target_ph:z[1]}
+        grads_on = self.sess.run(self.grads, feed_dict)
+        return -ldot(grads_on, self.s) * (1/len(self.trainset[0])), lnorm(grads_on)
+
+
+    def recompute_s(self, cg_iters=None, dampening=None, vervose=1):
+        if cg_iters == None:
+            cg_iters = self.cg_iters
+        if dampening == None:
+            dampening = self.dampening
+
+        hv_feed_dic = {self.input_ph:self.trainset[0], self.target_ph:self.trainset[1]}
+        def Hv_f(v):
+            for i in range(len(self.vecs)):
+                hv_feed_dic[self.vecs[i]] = v[i]
+            return ladd(self.sess.run(self.Hvp, hv_feed_dic), lprod(dampening, v))
+ 
+        self.s = conjugate_gradient(Hv_f, self.grad_loss_testset, cg_iters, vervose=vervose)
 # ---------------------------------------------------------------------------------
 
     def power_iteration(self, iters=None, epsilon=None):
