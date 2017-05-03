@@ -21,6 +21,14 @@ def deepnn(x):
   b_conv4 = bias_variable([64])
   h_conv4 = nl(conv2d(head, W_conv4, stride=1) + b_conv4)
 
+  W_conv5 = weight_variable([5, 5, 64, 64])
+  b_conv5 = bias_variable([64])
+  h_conv5 = nl(conv2d(head, W_conv5, stride=1) + b_conv5)
+
+  W_conv6 = weight_variable([5, 5, 64, 64])
+  b_conv6 = bias_variable([64])
+  h_conv6 = nl(conv2d(head, W_conv6, stride=1) + b_conv6)
+
   head = tf.reshape(head, [-1, 7*7*64])
 
   W_fc1 = weight_variable([7 * 7 * 64, 512])
@@ -28,21 +36,38 @@ def deepnn(x):
 
   head = nl(tf.matmul(head, W_fc1) + b_fc1)
 
-  #W_fc2 = weight_variable([512, 512])
-  #b_fc2 = bias_variable([512])
+  W_fc2 = weight_variable([512, 512])
+  b_fc2 = bias_variable([512])
 
-  #head = nl(tf.matmul(head, W_fc2) + b_fc2)
-
-  #W_fc3 = weight_variable([512, 512])
-  #b_fc3 = bias_variable([512])
-
-  #head = nl(tf.matmul(head, W_fc3) + b_fc3)
+  head = nl(tf.matmul(head, W_fc2) + b_fc2)
 
   W_fcf = weight_variable([512, 10])
   b_fcf = bias_variable([10])
 
   y_conv = tf.matmul(head, W_fcf) + b_fcf
-  return y_conv
+
+  weights = []
+  weights.append(W_conv1)
+  weights.append(b_conv1)
+  weights.append(W_conv2)
+  weights.append(b_conv2)
+  weights.append(W_conv3)
+  weights.append(b_conv3)
+  weights.append(W_conv4)
+  weights.append(b_conv4)
+  weights.append(W_conv5)
+  weights.append(b_conv5)
+  weights.append(W_conv6)
+  weights.append(b_conv6)
+
+  weights.append(W_fc1)
+  weights.append(b_fc1)
+  weights.append(W_fc2)
+  weights.append(b_fc2)
+  weights.append(W_fcf)
+  weights.append(b_fcf)
+
+  return y_conv, weights
 
 
 def conv2d(x, W, stride=1):
