@@ -44,7 +44,8 @@ def lsize(a):
 
 def conjugate_gradient(Ax_f, b, iters, vervose=False):
     global d, x, r, alpha, beta, r_new, Ad, dad
-    x = lset( lcopy(b), 0.)
+    #x = lset( lcopy(b), 0.)
+    x = [np.random.normal(size=v.shape) for v in b]
     xx = Ax_f(x)
     r = lsubtract(b, xx)
     d = r
@@ -69,6 +70,7 @@ def conjugate_gradient(Ax_f, b, iters, vervose=False):
             print("alpha:", alpha)
             print("beta:", beta)
             print("Ad scaling:", Ad_scaling)
+            print("d norm:", lnorm(d))
     return x
 
 
@@ -118,7 +120,7 @@ class Influence:
             b = self.minibatch_size
             hv_feed_dic[input_ph] = trainset[0][a:b]
             hv_feed_dic[target_ph] = trainset[1][a:b]
-            res = ladd(self.sess.run(Hvp, hv_feed_dic), lprod(self.dampening, v))
+            res = self.sess.run(Hvp, hv_feed_dic)
             while b < len(self.trainset[0]):
                 a = b 
                 b = min(a + self.minibatch_size, len(self.trainset[0]))
