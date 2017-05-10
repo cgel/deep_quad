@@ -69,6 +69,28 @@ def deepnn(x):
 
   return y_conv, weights
 
+def linear_model(x):
+  W = weight_variable([784, 10])
+  b = bias_variable([10])
+
+  y = tf.matmul(x, W) + b
+
+  weights = [W, b]
+  return y, weights
+
+def two_layer_model(x):
+  W1 = weight_variable([784, 500])
+  b1 = bias_variable([500])
+  h = tf.tanh(tf.matmul(x, W1) + b1)
+
+  W2 = weight_variable([500, 10])
+  b2 = bias_variable([10])
+  y = tf.matmul(h, W2) + b2
+
+  weights = [W1, b1, W2, b2]
+  return y, weights
+
+
 
 def conv2d(x, W, stride=1):
   """conv2d returns a 2d convolution layer with full stride."""
