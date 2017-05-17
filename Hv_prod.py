@@ -11,15 +11,14 @@ def Hv_prod(x, grads=None):
 
     # extend the graph to compute Hv products
     with tf.name_scope("Hv_prod"):
-        # vector placeholder
+        # vector placeholder (a vector)
         with tf.name_scope("v"):
-            vecs = [tf.placeholder(tf.float32, grads[i].get_shape(
-            ), name="v" + str(i) + "_ph") for i in range(len(grads))]
-        # gradient vector product
+            vecs = [tf.placeholder(tf.float32, grads[i].get_shape(), name="v" + str(i)+"_ph") for i in range(len(grads))]
+        # gradient vector product (a scalar)
         with tf.name_scope("gvp"):
-            gvp = [tf.reduce_sum(
-                grads[i] * self.vecs[i], name="gvp" + str(i)) for range(len(grads))]
-        # Hessian vector product
+            tt = 1
+            gvp = [tf.reduce_sum(grads[i] * vecs[i], name="gvp"+str(i) ) for i in range(len(grads))]
+        # Hessian vector product (a vector)
         Hvp = [hvp for hvp in tf.gradients(
             gvp, tf.global_variables(), name="second_order_grads") if hvp is not None]
-        return Hvp
+        return Hvp, vecs
