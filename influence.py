@@ -34,20 +34,23 @@ class Influence:
         self.loss_grads = [g for g in loss_grads if g is not None]
         self.loss = loss
         self.func = func 
-        self.dampening = dampening
         self.input_ph = input_ph
         self.target_ph = target_ph
         self.evalset = evalset
         self.trainset = trainset
-        self.minibatch_size = minibatch_size
         self.sess = tf.get_default_session()
+        self.dampening = dampening
+        self.normal_equation = normal_equation
+        self.minibatch_size = minibatch_size
+        self.cg_iters = cg_iters 
+        self.vervose = vervose
         self.scale = scale
 
         self.Hvp, self.vecs = Hv_prod(loss, loss_grads)
 
         self.s = None
 
-    def Hv_f(v):
+    def Hv_f(self, v):
         def minibatch_feed_dict(a, b):
             hv_feed_dic = {self.input_ph: self.trainset.images[
                 a:b], self.target_ph: self.trainset.labels[a:b]}
@@ -55,10 +58,10 @@ class Influence:
                 hv_feed_dic[self.vecs[i]] = v[i]
             return hv_feed_dic
         # compute the Hvp using the above feed_dict generator and add the dampening
-        Hvp_np =  minibatch_run(self.Hvp, minibatch_feed_dict, len(self.trainset.labels))/scale
+        Hvp_np =  minibatch_run(self.Hvp, minibatch_feed_dict, len(self.trainset.labels))/self.scale
         return Hvp_np + Vectorify(v) * self.dampening
 
-    def normal_Hv_f(v):
+    def normal_Hv_f(self, v):
         return self.Hv_f(self.Hv_f(v))
 
     def of(self, z):
@@ -69,25 +72,28 @@ class Influence:
         if self.s == None:
             Exception("Before computing the influence, s needs to be computed")
         feed_dict = {self.input_ph: z[0], self.target_ph: z[1]}
-        grads_on = Vectorify(self.sess.run(self.grads, feed_dict))
+        grads_on = Vectorify(self.sess.run(self.loss_grads, feed_dict))
         return -grads_on.dot(self.s), grads_on.norm()
 
     def compute_s(self):
-        self.evalset_func_grads = minibatch_run(func_grads, lambda a, b: {input_ph: evalset.images[
-            a:b], target_ph: evalset.labels[a:b]}, end=len(evalset.labels))
-        if not normal_equation:
+        self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
+            a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
+        if not self.normal_equation:
             self.s = conjugate_gradient(
-                self.Hv_f, self.evalset_func_grads, cg_iters, vervose=self.vervose) * scale
+                self.Hv_f, self.evalset_func_grads, self.cg_iters, vervose=self.vervose) * self.scale
         else:
             print("Warning: using the normal equations leads to numerical instability in CG")
             self.s = conjugate_gradient(self.normal_Hv_f, self.Hv_f(
-                self.evalset_func_grads), cg_iters, vervose=vervose) * scale
+                self.evalset_func_grads), self.cg_iters, vervose=self.vervose) * self.scale
 
     def save_s(self, filename):
         self.s.save(filename)
 
     def load_s(self, filename):
         self.s = Vectorify(filename)
+        self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
+            a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
+
 
 # ---------------------------------------------------------------------------------
 
