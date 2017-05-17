@@ -8,7 +8,7 @@ def conjugate_gradient(Ax_f, b, iters, vervose=False):
     r = b - xx
     d = r
     if vervose:
-        print("Error:", (Ax_f(x) - b).norm())
+        print("Initial error:", (Ax_f(x) - b).norm())
     for i in range(iters):
         Ad = Ax_f(d)
         Ad_scaling = Ad.norm() / d.norm()
@@ -20,13 +20,15 @@ def conjugate_gradient(Ax_f, b, iters, vervose=False):
         beta = r_new.dot(r_new) / r.dot(r)
         d = r_new + d * beta
         r = r_new
-        if vervose:
+        if vervose > 1:
             print("- iter:", i)
             print("Error:", (Ax_f(x) - b).norm())
-        if vervose > 1:
+        if vervose > 2:
             print("dad:", dad)
             print("alpha:", alpha)
             print("beta:", beta)
             print("Ad scaling:", Ad_scaling)
             print("d norm:", d.norm())
+    if vervose:
+        print("Final error:", (Ax_f(x) - b).norm())
     return x
