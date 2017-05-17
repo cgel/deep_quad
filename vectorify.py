@@ -10,7 +10,7 @@ class Vectorify:
         elif isinstance(vec, list):
             self.data = vec
         elif isinstance(vec, str):
-            self.data = pickle.load(vec)
+            self.data = pickle.load(open( vec, "rb" ))
         elif not isinstance(vec, list):
             self.data = [vec]
         self.size = sum([v.size for v in self.data])
