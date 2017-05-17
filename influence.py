@@ -2,79 +2,92 @@ import tensorflow as tf
 import numpy as np
 from vectorify import Vectorify
 from conjugate_gradient import conjugate_gradient
+from utils import minibatch_run
+from Hv_prod import Hv_prod
 
 
 class Influence:
 
-    def __init__(self, loss, input_ph, target_ph, testset, trainset, grads=None, dampening=0.1e-3, cg_iters=10, normal_equation=False, vervose=False, minibatch_size=1000):
-        # influence on  computed from dataset
-        # grads:     gradients of "on" if they have already been computed. If
-        # grads=None they will be recomputed.
+    def __init__(self, func, evalset, loss, trainset, input_ph, target_ph, scale, func_grads=None, loss_grads=None, dampening=0.1e-3, cg_iters=10, normal_equation=False, vervose=False, minibatch_size=1000):
+        # func            The function of which we want to compute the influecne
+        # evalset         The dataset on which func should be evaluated
+        # loss            The 
+        # trainset        The 
+        # input_ph        The 
+        # target_ph       The 
+        # scale           The 
+        # func_grads      The 
+        # loss_grads      The 
+        # dampening       The 
+        # cg_iters        The 
+        # normal_equation The 
+        # vervose         The 
+        # minibatch_size  The 
 
-        self.grads = grads
+        if func_grads == None:
+            func_grads = tf.gradients(func, tf.global_variables(),
+                             name="influence_func_grads")
+        if loss_grads == None:
+            loss_grads = tf.gradients(loss, tf.global_variables(),
+                             name="influence_loss_grads")
+        self.func_grads = [g for g in func_grads if g is not None]
+        self.loss_grads = [g for g in loss_grads if g is not None]
         self.loss = loss
+        self.func = func 
         self.dampening = dampening
         self.input_ph = input_ph
         self.target_ph = target_ph
-        self.testset = testset
+        self.evalset = evalset
         self.trainset = trainset
         self.minibatch_size = minibatch_size
         self.sess = tf.get_default_session()
+        self.scale = scale
 
-        self.grad_loss_testset = minibatch_run(grads, lambda a, b: {input_ph: testset[0][
-            a:b], target_ph: testset[1][a:b]}, end=len(testset[1]))
+        self.Hvp, self.vecs = Hv_prod(loss, loss_grads)
 
-        self.Hvp = Hv_prod(loss, grads)
+        self.s = None
 
-        def Hv_f(v):
-            def minibatch_feed_dict(a, b):
-                hv_feed_dic = {input_ph: trainset[0][
-                    a:b], target_ph: trainset[1][a:b]}
-                for i in range(len(self.vecs)):
-                    hv_feed_dic[self.vecs[i]] = v[i]
-                return hv_feed_dic
-            return minibatch_run(Hvp, hv_feed_dic, len(trainset[1])) + v * self.dampening
-
-        self.Hv_f = Hv_f
-
-        if normal_equation == False:
-            self.s = conjugate_gradient(
-                Hv_f, self.grad_loss_testset, cg_iters, vervose=vervose)
-        else:
-            print(
-                "Warning: using the normal equations leads to numerical instability in CG")
-
-            def normal_Hv_f(v):
-                return Hv_f(Hv_f(v))
-            self.s = conjugate_gradient(normal_Hv_f, Hv_f(
-                self.grad_loss_testset), cg_iters, vervose=vervose)
-
-    def of(self, z):
-        feed_dict = {self.input_ph: z[0], self.target_ph: z[1]}
-        grads_on = self.sess.run(self.grads, feed_dict)
-        return -ldot(grads_on, self.s)
-
-    def of_and_g(self, z):
-        feed_dict = {self.input_ph: z[0], self.target_ph: z[1]}
-        grads_on = self.sess.run(self.grads, feed_dict)
-        return -ldot(grads_on, self.s), lnorm(grads_on)
-
-    def recompute_s(self, cg_iters=None, dampening=None, vervose=1):
-        if cg_iters == None:
-            cg_iters = self.cg_iters
-        if dampening == None:
-            dampening = self.dampening
-
-        hv_feed_dic = {self.input_ph: self.trainset[
-            0], self.target_ph: self.trainset[1]}
-
-        def Hv_f(v):
+    def Hv_f(v):
+        def minibatch_feed_dict(a, b):
+            hv_feed_dic = {self.input_ph: self.trainset.images[
+                a:b], self.target_ph: self.trainset.labels[a:b]}
             for i in range(len(self.vecs)):
                 hv_feed_dic[self.vecs[i]] = v[i]
-            return ladd(self.sess.run(self.Hvp, hv_feed_dic), lprod(dampening, v))
+            return hv_feed_dic
+        # compute the Hvp using the above feed_dict generator and add the dampening
+        Hvp_np =  minibatch_run(self.Hvp, minibatch_feed_dict, len(self.trainset.labels))/scale
+        return Hvp_np + Vectorify(v) * self.dampening
 
-        self.s = conjugate_gradient(
-            Hv_f, self.grad_loss_testset, cg_iters, vervose=vervose)
+    def normal_Hv_f(v):
+        return self.Hv_f(self.Hv_f(v))
+
+    def of(self, z):
+        z_influence, z_grads = self.of_and_g(z) 
+        return z_influence
+
+    def of_and_g(self, z):
+        if self.s == None:
+            Exception("Before computing the influence, s needs to be computed")
+        feed_dict = {self.input_ph: z[0], self.target_ph: z[1]}
+        grads_on = Vectorify(self.sess.run(self.grads, feed_dict))
+        return -grads_on.dot(self.s), grads_on.norm()
+
+    def compute_s(self):
+        self.evalset_func_grads = minibatch_run(func_grads, lambda a, b: {input_ph: evalset.images[
+            a:b], target_ph: evalset.labels[a:b]}, end=len(evalset.labels))
+        if not normal_equation:
+            self.s = conjugate_gradient(
+                self.Hv_f, self.evalset_func_grads, cg_iters, vervose=self.vervose) * scale
+        else:
+            print("Warning: using the normal equations leads to numerical instability in CG")
+            self.s = conjugate_gradient(self.normal_Hv_f, self.Hv_f(
+                self.evalset_func_grads), cg_iters, vervose=vervose) * scale
+
+    def save_s(self, filename):
+        self.s.save(filename)
+
+    def load_s(self, filename):
+        self.s = Vectorify(filename)
 
 # ---------------------------------------------------------------------------------
 
