@@ -1,5 +1,6 @@
 import numpy as np
 from vectorify import Vectorify
+import tensorflow as tf
 
 
 def corrupt_mnist(mnist, corrupt_prob):
@@ -20,7 +21,9 @@ def corrupt_mnist(mnist, corrupt_prob):
     return mnist
 
 
-def minibatch_run(ops, feed_dict_f, end, minibatch_size=256, sess=tf.get_default_session()):
+def minibatch_run(ops, feed_dict_f, end, minibatch_size=256, sess=None):
+    if sess == None:
+        sess=tf.get_default_session()
     a = 0
     b = minibatch_size
     feed_dict = feed_dict_f(a, b)
@@ -31,3 +34,26 @@ def minibatch_run(ops, feed_dict_f, end, minibatch_size=256, sess=tf.get_default
         feed_dict = feed_dict_f(a, b)
         res += sess.run(ops, feed_dict)
     return res
+
+
+class Dataset:
+    def __init__(self, data):
+        self.images = data[0]
+        self.labels = data[1]
+        self.a = 0 
+        self.b = None 
+        
+    def next_batch(self, batch_size):
+        if self.b == None or self.b == len(self.labels):
+            self.a = 0
+            self.b = batch_size
+        else:
+            self.a = self.b
+            self.b = min(self.a + batch_size, len(self.labels) )
+            
+        return (self.images[self.a:self.b], self.labels[self.a:self.b])
+
+
+
+def leave_one_out_dataset(dataset, i):
+    return Dataset( (np.delete(dataset.images, i, axis=0), np.delete(dataset.labels, i, axis=0)) )
