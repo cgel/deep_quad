@@ -2,11 +2,13 @@ import tensorflow as tf
 from vectorify import Vectorify
 
 class Model:
-  def __init__(self, model_name, trainset, testset, sess):
+  def __init__(self, model_name, trainset, testset, sess, training_steps=50000):
     self.trainset = trainset
     self.testset = testset
     self.model_name = model_name
     self.sess = sess
+    self.training_steps = training_steps 
+    self.training_step_count = 0
 
     with tf.name_scope("net"):
       self.input_ph = tf.placeholder(tf.float32, [None, 784])
@@ -43,6 +45,7 @@ class Model:
   def update(self, n, learning_rate=0.1e-4):
       self.sess.run(self.change_lr, {self.learning_rate_ph:learning_rate})
       for _ in range(n):
+          self.training_step_count += 1
           batch_xs, batch_ys = self.trainset.next_batch(500)
           self.sess.run(self.train_step, feed_dict={self.input_ph: batch_xs, self.y_: batch_ys})
 
@@ -51,6 +54,7 @@ class Model:
       if vervose > 0:
         self.report()
       learning_rate = 1e-4
+      train_block_size = 2000 # could be a parameter
       for i in range(1, 21):
           if i%5 == 0:
             learning_rate = learning_rate/10.
@@ -58,9 +62,12 @@ class Model:
               print("New learning rate of:", learning_rate)
           if vervose > 0:
             print(" --- ", i, " --- ")    
-          self.update(2000, learning_rate)
+          self.update(train_block_size, learning_rate)
           if vervose > 0:
             self.report()
+          if self.training_step_count >= self.training_steps:
+           break
+ 
       print("Done training")
     else:
       Exception("A training remige for this model does not exist")
@@ -76,6 +83,9 @@ class Model:
 
   def evaluate_on(self, dataset):
     return self.sess.run(self.cross_entropy, feed_dict={self.input_ph: dataset.images, self.y_: dataset.labels})
+
+  def evaluate_accuracy_on(self, dataset):
+    return self.sess.run(self.accuracy, feed_dict={self.input_ph: dataset.images, self.y_: dataset.labels})
  
   def report(self):
     test_feed_dic = {self.input_ph: self.testset.images, self.y_: self.testset.labels}
