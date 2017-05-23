@@ -2,7 +2,6 @@ from vectorify import Vectorify
 
 
 def conjugate_gradient(Ax_f, b, iters, vervose=False):
-    #x = lset( lcopy(b), 0.)
     x = b.copy() * 0
     xx = Ax_f(x)
     r = b - xx
@@ -29,6 +28,7 @@ def conjugate_gradient(Ax_f, b, iters, vervose=False):
             print("beta:", beta)
             print("Ad scaling:", Ad_scaling)
             print("d norm:", d.norm())
+    final_err = (Ax_f(x) - b).norm()
     if vervose:
-        print("Final error:", (Ax_f(x) - b).norm())
-    return x
+        print("Final error:", final_err)
+    return x, final_err
