@@ -35,7 +35,7 @@ class Vectorify:
             assert self.compatible(a)
             res = list(map(np.add, self.data, a.data))
         else:
-            Exception("Cannot add Vectorify and %s" % (type(a)))
+            raise Exception("Cannot add Vectorify and %s" % (type(a)))
         return Vectorify(res)
 
     def __radd__(self, a):
@@ -52,7 +52,7 @@ class Vectorify:
             assert self.compatible(a)
             res=list(map(np.multiply, self.data, a.data))
         else:
-            Exception("Cannot multiply Vectorify and %s" % (type(a)))
+            raise Exception("Cannot multiply Vectorify and %s" % (type(a)))
         return Vectorify(res)
 
     def __sub__(self, a):
@@ -66,7 +66,7 @@ class Vectorify:
             assert self.compatible(a)
             res=list(map(np.subtract, self.data, a.data))
         else:
-            Exception("Cannot subtract Vectorify and %s" % (type(a)))
+            raise Exception("Cannot subtract Vectorify and %s" % (type(a)))
         return Vectorify(res)
 
     def __truediv__(self, a):
@@ -80,7 +80,7 @@ class Vectorify:
             assert self.compatible(a)
             res=list(map(np.divide, self.data, a.data))
         else:
-            Exception("Cannot divide Vectorify and %s" % (type(a)))
+            raise Exception("Cannot divide Vectorify and %s" % (type(a)))
         return Vectorify(res)
 
     def dot(self, a):
@@ -105,7 +105,7 @@ class Vectorify:
             for x,y in zip(self.data, a.data):
                 x[:] = y
         else:
-            Exception("Cannot assign %s to Vectorify" % (type(a)))
+            raise Exception("Cannot assign %s to Vectorify" % (type(a)))
 
     def copy(self):
         return Vectorify([x.copy() for x in self.data])
