@@ -1,5 +1,6 @@
 import tensorflow as tf
 from vectorify import Vectorify
+from utils import minibatch_run 
 
 class Model:
   def __init__(self, model_name, trainset, testset, sess, training_steps=50000):
@@ -82,10 +83,18 @@ class Model:
     return self.evaluate_on(self.testset)
 
   def evaluate_on(self, dataset):
-    return self.sess.run(self.cross_entropy, feed_dict={self.input_ph: dataset.images, self.y_: dataset.labels})
+    def minibatch_feed_dict(a, b):
+      feed_dic = {self.input_ph: dataset.images[
+          a:b], self.y_: dataset.labels[a:b]}
+      return feed_dic
+    return minibatch_run(self.cross_entropy, minibatch_feed_dict, len(dataset.labels))
 
   def evaluate_accuracy_on(self, dataset):
-    return self.sess.run(self.accuracy, feed_dict={self.input_ph: dataset.images, self.y_: dataset.labels})
+    def minibatch_feed_dict(a, b):
+      feed_dic = {self.input_ph: dataset.images[
+          a:b], self.y_: dataset.labels[a:b]}
+      return feed_dic
+    return minibatch_run(self.accuracy, minibatch_feed_dict, len(dataset.labels))
  
   def report(self):
     test_feed_dic = {self.input_ph: self.testset.images, self.y_: self.testset.labels}
