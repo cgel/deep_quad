@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+import numbers 
 
 
 class Vectorify:
@@ -13,7 +14,13 @@ class Vectorify:
             self.data = pickle.load(open( vec, "rb" ))
         elif not isinstance(vec, list):
             self.data = [vec]
-        self.size = sum([v.size for v in self.data])
+
+        self.size = 0
+        for v in self.data:
+            if isinstance(v, numbers.Number):
+                self.size += 1
+            else:
+                self.size += v.size
 
     def compatible(self, vec):
         assert isinstance(vec, Vectorify)
@@ -28,7 +35,7 @@ class Vectorify:
         if isinstance(a, list):
             a=Vectorify(a)
         # scalar product
-        if isinstance(a, int) or isinstance(a, float):
+        if isinstance(a, numbers.Number):
             res=list(map(lambda x: np.add(x, a), self.data))
         # elementwise product
         elif isinstance(a, Vectorify):
@@ -115,3 +122,11 @@ class Vectorify:
 
     def save(self, filename):
         pickle.dump(self.data, open(filename, "wb") )
+
+    def __str__(self):
+        if len(self.data) == 1:
+            return self.data[0].__str__()
+        else:
+            return self.data.__str__()
+
+
