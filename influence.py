@@ -79,12 +79,13 @@ class Influence:
         self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
             a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
         if not self.normal_equation:
-            self.s = conjugate_gradient(
-                self.Hv_f, self.evalset_func_grads, self.cg_iters, vervose=self.vervose) * self.scale
+            solution, self.cg_error = conjugate_gradient(
+                self.Hv_f, self.evalset_func_grads, self.cg_iters, vervose=self.vervose)
         else:
             print("Warning: using the normal equations leads to numerical instability in CG")
-            self.s = conjugate_gradient(self.normal_Hv_f, self.Hv_f(
-                self.evalset_func_grads), self.cg_iters, vervose=self.vervose) * self.scale
+            solution, self.cg_error = conjugate_gradient(self.normal_Hv_f, self.Hv_f(
+                self.evalset_func_grads), self.cg_iters, vervose=self.vervose)
+        self.s =  solution* self.scale
 
     def save_s(self, filename):
         self.s.save(filename)
