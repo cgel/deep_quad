@@ -32,7 +32,9 @@ def minibatch_run(ops, feed_dict_f, end, minibatch_size=256, sess=None):
         a = b
         b = min(a + minibatch_size, end)
         feed_dict = feed_dict_f(a, b)
-        res += sess.run(ops, feed_dict)
+        res += Vectorify(sess.run(ops, feed_dict))
+    if res.size == 1:
+        res = res.data[0]  
     return res
 
 
