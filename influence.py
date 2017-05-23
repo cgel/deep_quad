@@ -70,7 +70,7 @@ class Influence:
 
     def of_and_g(self, z):
         if self.s == None:
-            Exception("Before computing the influence, s needs to be computed")
+            raise Exception("Before computing the influence of z, s needs to be computed")
         feed_dict = {self.input_ph: z[0], self.target_ph: z[1]}
         grads_on = Vectorify(self.sess.run(self.loss_grads, feed_dict))
         return -grads_on.dot(self.s), grads_on.norm()
