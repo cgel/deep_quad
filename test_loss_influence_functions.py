@@ -10,6 +10,7 @@ args = parser.parse_args()
 import os
 os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
 
+import sys
 import uuid
 import numpy as np
 import string
@@ -22,7 +23,36 @@ from IPython.display import clear_output
 
 np.random.seed(1)
 
-FLAGS = None
+def write_log(cg_crash=False):
+    log_filename = base_path+"/logs/loss_inf_"+ str(args.training_steps) +"_"+ str(args.dampening) +"_" + str(args.cg_iters) + "_" + str(uuid.uuid4())+".txt"
+    f = open(log_filename, "w")
+    print("\nwriting log to: ", log_filename)
+ 
+    report =  "--- Arguments ---"
+    report += "\nTraining steps: "+str( args.training_steps)
+    report += "\nDampening: "+ str(args.dampening)
+    report += "\nCg_iters: "+ str(args.cg_iters)
+    
+    report += "\n\n--- Model info ---"
+    report += "\ntrain_loss: "+ str(model.evaluate_on(trainset))
+    report += "\nTrain_acc: "+ str(model.evaluate_accuracy_on(trainset))
+    report += "\nTest_loss: "+ str(model.evaluate_on(testset))
+    report += "\nTest_acc: "+ str(model.evaluate_accuracy_on(testset))
+    report += "\nCg_error: "+ "X" if cg_crash else str(inf.cg_error)+"\n"
+    if not cg_crash: 
+        report += "\n--- Influence correlation ---"
+        report += "\n2k: "+ str(np.corrcoef(losses_2k, subset_infs)[0][1])
+        report += "\n10k: "+ str(np.corrcoef(losses_10k, subset_infs)[0][1])
+        report += "\n30k: "+ str(np.corrcoef(losses_30k, subset_infs)[0][1])
+        report += "\n50k: "+ str(np.corrcoef(losses_50k, subset_infs)[0][1])+"\n\n"
+        report += "\nsubset_infs = "+str(subset_infs)
+        report += "\nlosses_2k = " +str(losses_2k)
+        report += "\nlosses_10k = "+str(losses_10k)
+        report += "\nlosses_30k = "+str(losses_30k)
+        report += "\nlosses_50k = "+str(losses_50k)+"\n"
+    f.write(report)
+    f.close()
+    print(report)
 
 # Import data
 mnist = input_data.read_data_sets("mnist_data", one_hot=True)
@@ -49,7 +79,12 @@ saver.save(sess, checkpoint_file)
 print("\nCompute s for the Influence class")
 scale = float(len(trainset.labels)) * 10
 inf = Influence(model.cross_entropy, testset, model.cross_entropy, trainset, model.input_ph, model.y_, scale, cg_iters = args.cg_iters, dampening=args.dampening, vervose=1)
-inf.compute_s()
+try:
+    inf.compute_s()
+except:
+    write_log(cg_crash=True)
+    print("CG crashed")
+    sys.exit(0)
 
 # compute the influences for every image in the training set
 print("\nComputing the influences for every image in the training set")
@@ -98,42 +133,5 @@ for j in range(len(subset)):
     print(j, ":  ", z_influ, model.testset_loss())
     saver.restore(sess, checkpoint_file)
     
-report =  "--- Arguments ---"
-report += "\nTraining steps: "+str( model.training_step_count)
-report += "\nDampening: "+ str(args.dampening)
-report += "\nCg_iters: "+ str(args.cg_iters)
+write_log()
 
-report += "\n\n--- Model info ---"
-report += "\ntrain_loss: "+ str(model.evaluate_on(trainset))
-report += "\nTrain_acc: "+ str(model.evaluate_accuracy_on(trainset))
-report += "\nTest_loss: "+ str(model.evaluate_on(testset))
-report += "\nTest_acc: "+ str(model.evaluate_accuracy_on(testset))
-report += "\nCg_error: "+ str(inf.cg_error)
-
-report += "\n\n--- Influence correlation ---"
-print(losses_2k)
-print(subset_infs)
-report += "\n2k: "+ str(np.corrcoef(losses_2k, subset_infs)[0][1])
-report += "\n10k: "+ str(np.corrcoef(losses_10k, subset_infs)[0][1])
-report += "\n30k: "+ str(np.corrcoef(losses_30k, subset_infs)[0][1])
-report += "\n50k: "+ str(np.corrcoef(losses_50k, subset_infs)[0][1])
-print(report)
-
-log_filename = base_path+"/logs/loss_inf_"+ str(args.training_steps) +"_"+ str(args.dampening) +"_" + str(args.cg_iters) + "_" + str(uuid.uuid4())+".txt"
-print("\nwriting log to: ", log_filename)
-
-f = open(log_filename, "w")
-
-def list_to_str(l):
-    return "["+ ", ".join(map(str, l)) + "]"
-
-f.write(report)
-f.write("\n\n")
-f.write("\nsubset_infs = "+list_to_str(subset_infs))
-f.write("\nlosses_2k = "+list_to_str(losses_2k))
-f.write("\nlosses_10k = "+list_to_str(losses_10k))
-f.write("\nlosses_30k = "+list_to_str(losses_30k))
-f.write("\nlosses_50k = "+list_to_str(losses_50k))
-f.write("\n")
-
-f.close()
