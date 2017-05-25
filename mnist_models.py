@@ -9,18 +9,22 @@ class Model:
     self.model_name = model_name
     self.sess = sess
     self.training_steps = training_steps 
+
     self.training_step_count = 0
 
     with tf.name_scope("net"):
       self.input_ph = tf.placeholder(tf.float32, [None, 784])
       if model_name == "convnet":
         self.y, weights = self.convnet(self.input_ph)
+        self.get_learning_rate = self.convnet_learning_rate_schedule
       elif model_name == "linear":
         self.y, weights = self.linear_model(self.input_ph)
+        #self.get_learnign_rate =
       elif model_name == "two_layer":
         self.y, weights = self.two_layer_model(self.input_ph)
+        #self.get_learnign_rate =
       else:
-        Exception("This model does not exist")
+        raise Exception("This model does not exist")
 
     # Define loss and optimizer
     with tf.name_scope("loss"):
@@ -29,10 +33,10 @@ class Model:
       regularization = tf.reduce_sum( [tf.nn.l2_loss(w) for w in weights])
       self.cross_entropy = tf.reduce_sum(batch_loss) + regularization * 0.001
 
-    lr = tf.Variable(0.1)
+    self.lr = tf.Variable(0.1)
     self.learning_rate_ph = tf.placeholder(tf.float32, ())
-    self.change_lr = tf.assign(lr, self.learning_rate_ph)
-    opt = tf.train.AdamOptimizer(lr)
+    self.change_lr = tf.assign(self.lr, self.learning_rate_ph)
+    opt = tf.train.AdamOptimizer(self.lr)
     self.grads_and_vars = opt.compute_gradients(self.cross_entropy)
     self.grads = [g for g,v in self.grads_and_vars if g is not None] 
     self.train_step = opt.apply_gradients(self.grads_and_vars)
@@ -42,43 +46,34 @@ class Model:
       correct_prediction = tf.equal(tf.argmax(self.y, 1), tf.argmax(self.y_, 1))
       self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
+  # train uses the appropriate learning reate schedule and prints reports of the progress
+  def train(self, vervose = 0, steps=None):
+    steps = steps if steps else self.training_steps
+    if vervose > 0: self.report()
+    learning_rate = self.get_learning_rate()
+    self.sess.run(self.change_lr, {self.learning_rate_ph:learning_rate})
+    for i in range(1, steps):
+      self.training_step_count += 1
+      if learning_rate != self.get_learning_rate():
+        learning_rate = self.get_learning_rate()
+        self.sess.run(self.change_lr, {self.learning_rate_ph:learning_rate})
+      batch_xs, batch_ys = self.trainset.next_batch(500)
+      self.sess.run(self.train_step, feed_dict={self.input_ph: batch_xs, self.y_: batch_ys})
+      if vervose > 1and i%2000 == 0:
+        print(" --- ", i, " --- ")    
+        self.report()
+    if vervose > 0:
+      print(" --- Ending after",steps,"steps --- ")    
+      self.report()
+    print("Done training")
  
-  def update(self, n, learning_rate=0.1e-4):
+  # update does not add to training_step_count
+  def update(self, n, learning_rate):
       self.sess.run(self.change_lr, {self.learning_rate_ph:learning_rate})
       for _ in range(n):
-          self.training_step_count += 1
           batch_xs, batch_ys = self.trainset.next_batch(500)
           self.sess.run(self.train_step, feed_dict={self.input_ph: batch_xs, self.y_: batch_ys})
 
-  def train(self, vervose = 0):
-    if self.model_name == "convnet":
-      if vervose > 0:
-        self.report()
-      learning_rate = 1e-4
-      train_block_size = 2000 # could be a parameter
-      for i in range(1, 21):
-          if i%5 == 0:
-            learning_rate = learning_rate/10.
-            if vervose > 0:
-              print("New learning rate of:", learning_rate)
-          if vervose > 0:
-            print(" --- ", i, " --- ")    
-          self.update(train_block_size, learning_rate)
-          if vervose > 0:
-            self.report()
-          if self.training_step_count >= self.training_steps:
-           break
- 
-      print("Done training")
-    else:
-      Exception("A training remige for this model does not exist")
-
-  def test(self, dataset):
-    test_acc, test_loss = self.sess.run([self.accuracy, self.cross_entropy], feed_dict={input_ph: dataset.test.images,
-                                    y_: dataset.test.labels})
-    print("test acc", test_acc)
-    print("test loss", test_loss)
-    
   def testset_loss(self, ):
     return self.evaluate_on(self.testset)
 
@@ -94,7 +89,7 @@ class Model:
       feed_dic = {self.input_ph: dataset.images[
           a:b], self.y_: dataset.labels[a:b]}
       return feed_dic
-    return minibatch_run(self.accuracy, minibatch_feed_dict, len(dataset.labels))
+    return minibatch_run(self.accuracy, minibatch_feed_dict, len(dataset.labels), mean=True)
  
   def report(self):
     test_feed_dic = {self.input_ph: self.testset.images, self.y_: self.testset.labels}
@@ -114,6 +109,15 @@ class Model:
     print("  accuracy", acc)
 
   # The models:
+  def convnet_learning_rate_schedule(self):
+    if self.training_step_count < 10000:
+      return 1e-4
+    elif self.training_step_count < 20000:
+      return 1e-5
+    elif self.training_step_count < 30000:
+      return 1e-6
+    else:
+      return 1e-7
 
   def convnet(self, x):
     nl = tf.nn.tanh
