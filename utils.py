@@ -20,23 +20,23 @@ def corrupt_mnist(mnist, corrupt_prob):
             mnist.train.labels[i][corrupted_label] = 1
     return mnist
 
-
-def minibatch_run(ops, feed_dict_f, end, minibatch_size=256, sess=None):
+def minibatch_run(ops, feed_dict_f, end, start=0, minibatch_size=256, sess=None, mean=False):
     if sess == None:
         sess=tf.get_default_session()
-    a = 0
+    a = start
     b = minibatch_size
     feed_dict = feed_dict_f(a, b)
-    res = Vectorify(sess.run(ops, feed_dict))
+    if mean: res = Vectorify(sess.run(ops, feed_dict)) * float(b-a)/(end-start)
+    else: res = Vectorify(sess.run(ops, feed_dict))
     while b < end:
         a = b
         b = min(a + minibatch_size, end)
         feed_dict = feed_dict_f(a, b)
-        res += Vectorify(sess.run(ops, feed_dict))
+        if mean: res += Vectorify(sess.run(ops, feed_dict)) * float(b-a)/(end-start)
+        else: res += Vectorify(sess.run(ops, feed_dict))
     if res.size == 1:
         res = res.data[0]  
     return res
-
 
 class Dataset:
     def __init__(self, data):
@@ -54,8 +54,6 @@ class Dataset:
             self.b = min(self.a + batch_size, len(self.labels) )
             
         return (self.images[self.a:self.b], self.labels[self.a:self.b])
-
-
 
 def leave_one_out_dataset(dataset, i):
     return Dataset( (np.delete(dataset.images, i, axis=0), np.delete(dataset.labels, i, axis=0)) )
