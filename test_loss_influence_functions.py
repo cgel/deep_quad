@@ -134,4 +134,3 @@ for j in range(len(subset)):
     saver.restore(sess, checkpoint_file)
     
 write_log()
-
