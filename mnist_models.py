@@ -33,10 +33,11 @@ class Model:
       regularization = tf.reduce_sum( [tf.nn.l2_loss(w) for w in weights])
       self.cross_entropy = tf.reduce_sum(batch_loss) + regularization * 0.001
 
-    self.lr = tf.Variable(0.1)
+    self.lr = tf.Variable(0.1, trainable=False)
     self.learning_rate_ph = tf.placeholder(tf.float32, ())
     self.change_lr = tf.assign(self.lr, self.learning_rate_ph)
-    opt = tf.train.AdamOptimizer(self.lr)
+    #opt = tf.train.AdamOptimizer(self.lr)
+    opt = tf.train.GradientDescentOptimizer(self.lr)
     self.grads_and_vars = opt.compute_gradients(self.cross_entropy)
     self.grads = [g for g,v in self.grads_and_vars if g is not None] 
     self.train_step = opt.apply_gradients(self.grads_and_vars)
@@ -138,15 +139,15 @@ class Model:
   
     W_conv4 = weight_variable([5, 5, 64, 64])
     b_conv4 = bias_variable([64])
-    h_conv4 = nl(conv2d(head, W_conv4, stride=1) + b_conv4)
+    head = nl(conv2d(head, W_conv4, stride=1) + b_conv4)
   
     W_conv5 = weight_variable([5, 5, 64, 64])
     b_conv5 = bias_variable([64])
-    h_conv5 = nl(conv2d(head, W_conv5, stride=1) + b_conv5)
+    head = nl(conv2d(head, W_conv5, stride=1) + b_conv5)
   
     W_conv6 = weight_variable([5, 5, 64, 64])
     b_conv6 = bias_variable([64])
-    h_conv6 = nl(conv2d(head, W_conv6, stride=1) + b_conv6)
+    head = nl(conv2d(head, W_conv6, stride=1) + b_conv6)
   
     head = tf.reshape(head, [-1, 7*7*64])
   
