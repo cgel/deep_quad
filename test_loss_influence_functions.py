@@ -4,6 +4,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-training_steps", type=int, required=True)
 parser.add_argument("-dampening", type=float, required=True)
 parser.add_argument("-cg_iters", type=int, required=True)
+parser.add_argument("-auto_dampening", type=bool, required=True)
 parser.add_argument("-gpu", type=int, required=True)
 args = parser.parse_args()
 
@@ -30,8 +31,10 @@ def write_log(cg_crash=False):
  
     report =  "--- Arguments ---"
     report += "\nTraining steps: "+str( args.training_steps)
-    report += "\nDampening: "+ str(args.dampening)
+    report += "\nInitial_dampening: "+ str(inf.initial_dampening)
+    report += "\nDampening: "+ str(inf.dampening)
     report += "\nCg_iters: "+ str(args.cg_iters)
+    report += "\nAuto_dampening: "+ str(args.auto_dampening)
     
     report += "\n\n--- Model info ---"
     report += "\ntrain_loss: "+ str(model.evaluate_on(trainset))
@@ -78,13 +81,15 @@ saver.save(sess, checkpoint_file)
 
 print("\nCompute s for the Influence class")
 scale = float(len(trainset.labels)) * 10
-inf = Influence(model.cross_entropy, testset, model.cross_entropy, trainset, model.input_ph, model.y_, scale, cg_iters = args.cg_iters, dampening=args.dampening, vervose=1)
-try:
+inf = Influence(model.cross_entropy, testset, model.cross_entropy, trainset, model.input_ph, model.y_, scale, cg_iters = args.cg_iters, initial_dampening=args.dampening, vervose=1)
+if args.auto_dampening:
+    inf.robust_compute_s()
+else:
     inf.compute_s()
-except:
-    write_log(cg_crash=True)
-    print("CG crashed")
-    sys.exit(0)
+    if inf.s == None:
+        write_log(cg_crash=True)
+        print("CG crashed")
+        sys.exit(0)
 
 # compute the influences for every image in the training set
 print("\nComputing the influences for every image in the training set")
