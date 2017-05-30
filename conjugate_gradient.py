@@ -12,7 +12,8 @@ def conjugate_gradient(Ax_f, b, iters, vervose=False):
         Ad = Ax_f(d)
         Ad_scaling = Ad.norm() / d.norm()
         dad = d.dot(Ad)
-        assert dad >= 0., "d^tAd=%.5f, so A is not possitive definite." % dad
+        if dad < 0.:
+            return None, None
         alpha = r.dot(r) / dad
         x = x + d * alpha
         r_new = r - Ad * alpha
