@@ -8,7 +8,7 @@ from Hv_prod import Hv_prod
 
 class Influence:
 
-    def __init__(self, func, evalset, loss, trainset, input_ph, target_ph, scale, func_grads=None, loss_grads=None, dampening=0.1e-3, cg_iters=10, normal_equation=False, vervose=False, minibatch_size=1000):
+    def __init__(self, func, evalset, loss, trainset, input_ph, target_ph, scale, func_grads=None, loss_grads=None, initial_dampening=0.1e-3, cg_iters=10, normal_equation=False, vervose=False, minibatch_size=1000):
         # func            The function of which we want to compute the influecne
         # evalset         The dataset on which func should be evaluated
         # loss            The 
@@ -25,10 +25,10 @@ class Influence:
         # minibatch_size  The 
 
         if func_grads == None:
-            func_grads = tf.gradients(func, tf.global_variables(),
+            func_grads = tf.gradients(func, tf.trainable_variables(),
                              name="influence_func_grads")
         if loss_grads == None:
-            loss_grads = tf.gradients(loss, tf.global_variables(),
+            loss_grads = tf.gradients(loss, tf.trainable_variables(),
                              name="influence_loss_grads")
         self.func_grads = [g for g in func_grads if g is not None]
         self.loss_grads = [g for g in loss_grads if g is not None]
@@ -39,7 +39,8 @@ class Influence:
         self.evalset = evalset
         self.trainset = trainset
         self.sess = tf.get_default_session()
-        self.dampening = dampening
+        self.initial_dampening = initial_dampening
+        self.dampening = initial_dampening
         self.normal_equation = normal_equation
         self.minibatch_size = minibatch_size
         self.cg_iters = cg_iters 
@@ -55,7 +56,8 @@ class Influence:
             hv_feed_dic = {self.input_ph: self.trainset.images[
                 a:b], self.target_ph: self.trainset.labels[a:b]}
             for i in range(len(self.vecs)):
-                hv_feed_dic[self.vecs[i]] = v[i]
+                v_i = v[i]
+                hv_feed_dic[self.vecs[i]] = v_i
             return hv_feed_dic
         # compute the Hvp using the above feed_dict generator and add the dampening
         Hvp_np =  minibatch_run(self.Hvp, minibatch_feed_dict, len(self.trainset.labels))/self.scale
@@ -76,6 +78,7 @@ class Influence:
         return -grads_on.dot(self.s), grads_on.norm()
 
     def compute_s(self):
+        self.dampening = self.initial_dampening
         self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
             a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
         if not self.normal_equation:
@@ -85,6 +88,24 @@ class Influence:
             print("Warning: using the normal equations leads to numerical instability in CG")
             solution, self.cg_error = conjugate_gradient(self.normal_Hv_f, self.Hv_f(
                 self.evalset_func_grads), self.cg_iters, vervose=self.vervose)
+        self.s =  solution* self.scale
+
+    def robust_compute_s(self):
+        self.dampening = self.initial_dampening
+        while True: 
+            self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
+                a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
+            if not self.normal_equation:
+                solution, self.cg_error = conjugate_gradient(
+                    self.Hv_f, self.evalset_func_grads, self.cg_iters, vervose=self.vervose)
+            else:
+                solution, self.cg_error = conjugate_gradient(self.normal_Hv_f, self.Hv_f(
+                    self.evalset_func_grads), self.cg_iters, vervose=self.vervose)
+            if solution == None:
+                self.dampening *= 10 
+                print("changing the dampening to:", self.dampening)
+            else:
+                break
         self.s =  solution* self.scale
 
     def save_s(self, filename):
