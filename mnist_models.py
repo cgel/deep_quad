@@ -3,12 +3,13 @@ from vectorify import Vectorify
 from utils import minibatch_run 
 
 class Model:
-  def __init__(self, model_name, trainset, testset, sess, training_steps=50000):
+  def __init__(self, model_name, trainset, testset, sess, training_steps=50000, training_batch_size=100):
     self.trainset = trainset
     self.testset = testset
     self.model_name = model_name
     self.sess = sess
     self.training_steps = training_steps 
+    self.training_batch_size = training_batch_size
 
     self.training_step_count = 0
 
@@ -48,7 +49,7 @@ class Model:
       self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
   # train uses the appropriate learning reate schedule and prints reports of the progress
-  def train(self, vervose = 0, steps=None):
+  def train(self,steps=None, vervose = 0):
     steps = steps if steps else self.training_steps
     if vervose > 0: self.report()
     learning_rate = self.get_learning_rate()
@@ -58,7 +59,7 @@ class Model:
       if learning_rate != self.get_learning_rate():
         learning_rate = self.get_learning_rate()
         self.sess.run(self.change_lr, {self.learning_rate_ph:learning_rate})
-      batch_xs, batch_ys = self.trainset.next_batch(500)
+      batch_xs, batch_ys = self.trainset.next_batch(self.training_batch_size)
       self.sess.run(self.train_step, feed_dict={self.input_ph: batch_xs, self.y_: batch_ys})
       if vervose > 1and i%2000 == 0:
         print(" --- ", i, " --- ")    
@@ -72,7 +73,7 @@ class Model:
   def update(self, n, learning_rate):
       self.sess.run(self.change_lr, {self.learning_rate_ph:learning_rate})
       for _ in range(n):
-          batch_xs, batch_ys = self.trainset.next_batch(500)
+          batch_xs, batch_ys = self.trainset.next_batch(self.training_batch_size)
           self.sess.run(self.train_step, feed_dict={self.input_ph: batch_xs, self.y_: batch_ys})
 
   def testset_loss(self, ):
@@ -83,15 +84,19 @@ class Model:
       feed_dic = {self.input_ph: dataset.images[
           a:b], self.y_: dataset.labels[a:b]}
       return feed_dic
-    return minibatch_run(self.cross_entropy, minibatch_feed_dict, len(dataset.labels))
+    return minibatch_run(self.cross_entropy, minibatch_feed_dict, len(dataset.labels), minibatch_size=50)
 
   def evaluate_accuracy_on(self, dataset):
     def minibatch_feed_dict(a, b):
       feed_dic = {self.input_ph: dataset.images[
           a:b], self.y_: dataset.labels[a:b]}
       return feed_dic
-    return minibatch_run(self.accuracy, minibatch_feed_dict, len(dataset.labels), mean=True)
+    return minibatch_run(self.accuracy, minibatch_feed_dict, len(dataset.labels), minibatch_size=50, mean=True)
  
+  def reset(self):
+    tf.global_variables_initializer().run()
+    self.training_step_count = 0
+
   def report(self):
     test_feed_dic = {self.input_ph: self.testset.images, self.y_: self.testset.labels}
     
