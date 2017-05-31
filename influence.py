@@ -88,7 +88,7 @@ class Influence:
             print("Warning: using the normal equations leads to numerical instability in CG")
             solution, self.cg_error = conjugate_gradient(self.normal_Hv_f, self.Hv_f(
                 self.evalset_func_grads), self.cg_iters, vervose=self.vervose)
-        self.s =  solution* self.scale
+        self.s = solution* self.scale if solution else None
 
     def robust_compute_s(self):
         self.dampening = self.initial_dampening
