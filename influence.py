@@ -56,8 +56,7 @@ class Influence:
             hv_feed_dic = {self.input_ph: self.trainset.images[
                 a:b], self.target_ph: self.trainset.labels[a:b]}
             for i in range(len(self.vecs)):
-                v_i = v[i]
-                hv_feed_dic[self.vecs[i]] = v_i
+                hv_feed_dic[self.vecs[i]] = v[i]
             return hv_feed_dic
         # compute the Hvp using the above feed_dict generator and add the dampening
         Hvp_np =  minibatch_run(self.Hvp, minibatch_feed_dict, len(self.trainset.labels))/self.scale
@@ -77,10 +76,13 @@ class Influence:
         grads_on = Vectorify(self.sess.run(self.loss_grads, feed_dict))
         return -grads_on.dot(self.s), grads_on.norm()
 
-    def compute_s(self):
+    def compute_s(self, evalset_func_grads=None):
         self.dampening = self.initial_dampening
-        self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
-            a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
+        if evalset_func_grads == None:
+            self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
+                a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
+        else:
+            self.evalset_func_grads = evalset_func_grads
         if not self.normal_equation:
             solution, self.cg_error = conjugate_gradient(
                 self.Hv_f, self.evalset_func_grads, self.cg_iters, vervose=self.vervose)
@@ -90,11 +92,15 @@ class Influence:
                 self.evalset_func_grads), self.cg_iters, vervose=self.vervose)
         self.s =  solution* self.scale
 
-    def robust_compute_s(self):
+    def robust_compute_s(self, evalset_func_grads=None):
         self.dampening = self.initial_dampening
         while True: 
-            self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
-                a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
+            if evalset_func_grads == None:
+                self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
+                    a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
+            else:
+                self.evalset_func_grads = evalset_func_grads
+
             if not self.normal_equation:
                 solution, self.cg_error = conjugate_gradient(
                     self.Hv_f, self.evalset_func_grads, self.cg_iters, vervose=self.vervose)
