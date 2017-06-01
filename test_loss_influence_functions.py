@@ -4,9 +4,19 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-training_steps", type=int, required=True)
 parser.add_argument("-dampening", type=float, required=True)
 parser.add_argument("-cg_iters", type=int, required=True)
-parser.add_argument("-auto_dampening", type=bool, required=True)
+parser.add_argument("-auto_dampening", type=str, required=True)
 parser.add_argument("-gpu", type=int, required=True)
 args = parser.parse_args()
+
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+args.auto_dampening = str2bool(args.auto_dampening)
 
 import os
 os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
@@ -24,8 +34,17 @@ from IPython.display import clear_output
 
 np.random.seed(1)
 
+base_path = dir_path = os.path.dirname(os.path.realpath(__file__))
+checkpoint_dir = base_path+"/checkpoints/"
+if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
+checkpoint_file = checkpoint_dir+str(uuid.uuid4())
+log_dir = base_path+"/logs/"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+log_filename = log_dir+str(args.training_steps) +"_"+ str(args.dampening) +"_" + str(args.cg_iters) + "_" + str(uuid.uuid4())+".txt"
+
 def write_log(cg_crash=False):
-    log_filename = base_path+"/logs/loss_inf_"+ str(args.training_steps) +"_"+ str(args.dampening) +"_" + str(args.cg_iters) + "_" + str(uuid.uuid4())+".txt"
     f = open(log_filename, "w")
     print("\nwriting log to: ", log_filename)
  
@@ -70,9 +89,6 @@ model = Model("convnet", trainset, testset, sess, training_steps=args.training_s
 saver = tf.train.Saver()
 tf.global_variables_initializer().run()
 summary_writter = tf.summary.FileWriter("./Hvp_summaries", sess.graph)
-
-base_path = dir_path = os.path.dirname(os.path.realpath(__file__))
-checkpoint_file = base_path+"/checkpoints/"+str(uuid.uuid4())
 
 
 print("\nTraining the model")
