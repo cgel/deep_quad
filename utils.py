@@ -80,8 +80,10 @@ class Dataset:
 
 
     def add_data(self, batch):
+        assert batch[0].shape[0] == batch[1].shape[0], "There must be an equal number of images and labels"
         self.images = np.append(self.images, batch[0], 0)
         self.labels = np.append(self.labels, batch[1], 0)
+        self.size += batch[0].shape[0]
 
     def remove_data(self, inds):
         self.images = np.delete(self.images, inds, axis=0)
@@ -89,3 +91,4 @@ class Dataset:
 
 def leave_one_out_dataset(dataset, i):
     return Dataset( (np.delete(dataset.images, i, axis=0), np.delete(dataset.labels, i, axis=0)) )
+
