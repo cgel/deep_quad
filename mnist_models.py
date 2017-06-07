@@ -116,14 +116,17 @@ class Model:
 
   # The models:
   def convnet_learning_rate_schedule(self):
-    if self.training_step_count < 10000:
-      return 1e-4
-    elif self.training_step_count < 20000:
-      return 1e-5
-    elif self.training_step_count < 30000:
-      return 1e-6
-    else:
-      return 1e-7
+    return 1e-4
+    # this schedule is designed for small training sets
+    #if self.training_step_count < 100000:
+    #  return 5e-2/float(self.trainset.size)**0.9
+    #elif self.tr3ining_step_count < 20000:
+    #  return 1e-2/self.trainset.size
+   # elif self.training_step_count < 30000:
+   #   return 1e-3/self.trainset.size
+   # else:
+   #   return 1e-4/self.trainset.size
+
 
   def convnet(self, x):
     nl = tf.nn.tanh
