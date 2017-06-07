@@ -65,16 +65,17 @@ class Influence:
     def normal_Hv_f(self, v):
         return self.Hv_f(self.Hv_f(v))
 
-    def of(self, z):
-        z_influence, z_grads = self.of_and_g(z) 
+    def of(self, z, absolute=False):
+        z_influence, z_grads = self.of_and_g(z, absolute) 
         return z_influence
 
-    def of_and_g(self, z):
+    def of_and_g(self, z, absolute=False):
         if self.s == None:
             raise Exception("Before computing the influence of z, s needs to be computed")
         feed_dict = {self.input_ph: z[0], self.target_ph: z[1]}
         grads_on = Vectorify(self.sess.run(self.loss_grads, feed_dict))
-        return -grads_on.dot(self.s), grads_on.norm()
+        dot_p = abs(grads_on.dot(self.s)) if absolute else -grads_on.dot(self.s)
+        return dot_p, grads_on
 
     def compute_s(self, evalset_func_grads=None):
         self.dampening = self.initial_dampening
@@ -94,25 +95,25 @@ class Influence:
 
     def robust_compute_s(self, evalset_func_grads=None):
         self.dampening = self.initial_dampening
+        if evalset_func_grads == None:
+            self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
+                a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
+        else:
+            self.evalset_func_grads = evalset_func_grads
         while True: 
-            if evalset_func_grads == None:
-                self.evalset_func_grads = minibatch_run(self.func_grads, lambda a, b: {self.input_ph: self.evalset.images[
-                    a:b], self.target_ph: self.evalset.labels[a:b]}, end=len(self.evalset.labels))
-            else:
-                self.evalset_func_grads = evalset_func_grads
-
             if not self.normal_equation:
                 solution, self.cg_error = conjugate_gradient(
                     self.Hv_f, self.evalset_func_grads, self.cg_iters, vervose=self.vervose)
             else:
                 solution, self.cg_error = conjugate_gradient(self.normal_Hv_f, self.Hv_f(
                     self.evalset_func_grads), self.cg_iters, vervose=self.vervose)
+            # detect if CG crashed
             if solution == None:
                 self.dampening *= 10 
                 print("changing the dampening to:", self.dampening)
             else:
                 break
-        self.s =  solution* self.scale
+        self.s =  solution*self.scale
 
     def save_s(self, filename):
         self.s.save(filename)
